@@ -16,6 +16,7 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".proj", ".proj", "{A02A4759-44C3-4E41-B794-EAD39F14A0DD}"
 	ProjectSection(SolutionItems) = preProject
 		buildPackages.bat = buildPackages.bat
+		buildPackages_DeleteXaf.bat = buildPackages_DeleteXaf.bat
 		buildPackages_Tiger.bat = buildPackages_Tiger.bat
 		buildPackages_Xaf.bat = buildPackages_Xaf.bat
 		LICENSE.md = LICENSE.md

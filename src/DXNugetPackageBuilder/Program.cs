@@ -111,6 +111,8 @@ namespace DXNugetPackageBuilder
                 BuildPackages_Tiger(arguments, logAction, logExceptionAction, logLoadAssemblyAction, unexpectedExceptionAction, successAction);
             else if (arguments.Kind == 2)
                 BuildPackages_Libs(arguments, logAction, logExceptionAction, logLoadAssemblyAction, unexpectedExceptionAction, successAction);
+            else if (arguments.Kind == 10)
+                DeletePackages(arguments);
         }
 
         private static void BuildPackages_Xaf(ProgramArguments arguments, Action<string> logAction, Action<Exception> logExceptionAction, Action<Tuple<string, Exception>> logLoadAssemblyAction, Action<Exception> unexpectedExceptionAction, Action<string> successAction)
@@ -595,7 +597,7 @@ namespace DXNugetPackageBuilder
                     resourcePackage.Files.Add(new PhysicalPackageFile
                     {
                         SourcePath = localizedAssemblyPath,
-                        TargetPath = $"lib/{netPath}/" + lang + "/" + Path.GetFileName(localizedAssemblyPath),
+                        TargetPath = "lib/"+netPath+"/" + lang + "/" + Path.GetFileName(localizedAssemblyPath),
                     });
                 }
 
@@ -606,7 +608,7 @@ namespace DXNugetPackageBuilder
                     resourcePackage.Files.Add(new PhysicalPackageFile
                     {
                         SourcePath = xmlFile,
-                        TargetPath = $"lib/{netPath}/" + lang + "/" + Path.GetFileName(xmlFile),
+                        TargetPath = "lib/"+netPath+"/" + lang + "/" + Path.GetFileName(xmlFile),
                     });
                 }
             }
@@ -626,7 +628,56 @@ namespace DXNugetPackageBuilder
 
                     using (var process = new Process())
                     {
-                        process.StartInfo = new ProcessStartInfo("nuget.exe", string.Format("push {0} -Source {1} -ApiKey {2}", packageName, arguments.NugetSource, arguments.NugetApiKey));
+                        process.StartInfo = new ProcessStartInfo(System.Environment.CurrentDirectory+ @"\nuget.exe", string.Format("push {0} -Source {1} -ApiKey {2}", packageName, arguments.NugetSource, arguments.NugetApiKey));
+                        process.StartInfo.CreateNoWindow = true;
+                        process.StartInfo.ErrorDialog = false;
+                        process.StartInfo.RedirectStandardError = true;
+                        process.StartInfo.RedirectStandardOutput = true;
+                        process.StartInfo.UseShellExecute = false;
+
+                        process.OutputDataReceived += (sender, args) => Console.WriteLine(args.Data);
+                        process.ErrorDataReceived += (sender, args) => Console.WriteLine(args.Data);
+
+                        process.EnableRaisingEvents = true;
+
+                        process.Start();
+                        process.BeginOutputReadLine();
+                        process.BeginErrorReadLine();
+
+                        process.WaitForExit();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex);
+                    Console.ReadKey();
+                }
+
+            }
+        }
+
+        private static void DeletePackages(ProgramArguments arguments)
+        {
+            var packages = Directory.GetFiles(arguments.OutputDirectory, "*.nupkg").ToList();
+
+            Console.WriteLine("Deleting {0} packages to " + arguments.NugetSource, packages.Count());
+
+            foreach (var package in packages)
+            {
+                try
+                {
+                    //var packageName = "\"" + package + "\"";
+                    var packageName = Path.GetFileNameWithoutExtension(package);
+                    //DevExpress.Charts.Core_yesfree.18.1.4.0
+                    var packageVersion =  packageName.Substring(packageName.Length - 8, 6) ;
+                    var packageId = packageName.Substring(0, packageName.Length - 9) ;
+                    using (var process = new Process())
+                    {
+                        //nuget delete <packageID> <packageVersion> [options]
+                        string cmd = string.Format("delete {0} {1} -Source {2} -ApiKey {3}", packageId, packageVersion, arguments.NugetSource, arguments.NugetApiKey);
+                        Console.WriteLine(cmd);
+                        Console.WriteLine(System.Environment.CurrentDirectory + @"\nuget.exe");
+                        process.StartInfo = new ProcessStartInfo(System.Environment.CurrentDirectory + @"\nuget.exe", cmd);
                         process.StartInfo.CreateNoWindow = true;
                         process.StartInfo.ErrorDialog = false;
                         process.StartInfo.RedirectStandardError = true;
