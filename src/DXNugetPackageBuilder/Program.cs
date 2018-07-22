@@ -126,10 +126,10 @@ namespace DXNugetPackageBuilder
                     var package = new PackageBuilder();
 
                     package.Description = "DevExpress " + packageName;
-                    package.Authors.Add("DevExpress & Yesfree");
+                    package.Authors.Add("DevExpress and Yesfree");
                     package.IconUrl = new Uri("http://nuget.yesfree.cn/ico/xaf.ico");
                     package.Copyright = "2008-" + DateTime.Today.Year;
-                    package.ProjectUrl = new Uri("https://www.devexpress.com/");
+                    package.ProjectUrl = new Uri("https://www.Yesfree.cn/xaf");
 
                     package.Files.Add(new PhysicalPackageFile
                     {
@@ -211,7 +211,7 @@ namespace DXNugetPackageBuilder
                             if (refPackageId.Contains(dxVersion))
                                 refPackageId = refPackageId.Replace(dxVersion, string.Empty);
 
-
+                            refPackageId += "_yesfree";
                             var refAssemblyVersion = refAssembly.Version;
 
                             var minVersion = new SemanticVersion(new Version(refAssemblyVersion.Major, refAssemblyVersion.Minor, refAssemblyVersion.Build));
@@ -380,7 +380,7 @@ namespace DXNugetPackageBuilder
 
                         if (packageName.Contains(dxVersion))
                             packageName = packageName.Replace(dxVersion, string.Empty);
-                        packageName += "_yesfree";
+                        //packageName += "_yesfree";
 
                         var targetPackagePath = Path.Combine(arguments.OutputDirectory, packageName + "." + assemblyVersion.ToString(4) + ".nupkg");
 

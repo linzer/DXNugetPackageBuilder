@@ -30,10 +30,10 @@ namespace DXNugetPackageBuilder
         public bool NugetPush { get; set; }
 
         [Description("The target nuget source location")]
-        [CommandLineArgument(Position = 4, IsRequired = false)]
+        [CommandLineArgument(Position = 5, IsRequired = false)]
         public string NugetSource { get; set; }
 
-        [CommandLineArgument(IsRequired = false, DefaultValue = true)]
+        [CommandLineArgument(IsRequired = false, DefaultValue = false)]
         public bool UseAssemblyFileVersion { get; set; }
 
 
@@ -51,7 +51,7 @@ namespace DXNugetPackageBuilder
             }
         }
 
-        [CommandLineArgument, DefaultValue = true, Description("Verbose Log output")]
+        [CommandLineArgument(DefaultValue = true), Description("Verbose Log output")]
         public bool Verbose { get; set; }
 
         [CommandLineArgument(Position = 5)]
