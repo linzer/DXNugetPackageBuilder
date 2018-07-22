@@ -17,7 +17,10 @@ namespace DXNugetPackageBuilder
         [CommandLineArgument(Position = 2, IsRequired = true), Description("The directory where the Nuget-Packages should be written")]
         public string OutputDirectory { get; set; }
 
-        [CommandLineArgument(Position = 3, IsRequired = false), Description("The supported languages, seperated by ;")]
+        [CommandLineArgument(Position = 3, IsRequired = true), Description("0:xaf; 1:Tiger; 2: Libs")]
+        public int Kind { get; set; }
+
+        [CommandLineArgument(Position = 4, IsRequired = false), Description("The supported languages, seperated by ;")]
         public string Languages { get; set; }
 
         [CommandLineArgument(IsRequired = false)]
@@ -30,7 +33,7 @@ namespace DXNugetPackageBuilder
         [CommandLineArgument(Position = 4, IsRequired = false)]
         public string NugetSource { get; set; }
 
-        [CommandLineArgument(IsRequired = false, DefaultValue = false)]
+        [CommandLineArgument(IsRequired = false, DefaultValue = true)]
         public bool UseAssemblyFileVersion { get; set; }
 
 
@@ -48,7 +51,7 @@ namespace DXNugetPackageBuilder
             }
         }
 
-        [CommandLineArgument, Description("Verbose Log output")]
+        [CommandLineArgument, DefaultValue = true, Description("Verbose Log output")]
         public bool Verbose { get; set; }
 
         [CommandLineArgument(Position = 5)]

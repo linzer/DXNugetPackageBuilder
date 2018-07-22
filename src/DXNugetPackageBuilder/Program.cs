@@ -105,8 +105,19 @@ namespace DXNugetPackageBuilder
             {
                 Directory.CreateDirectory(arguments.PdbDirectory);
             }
+            if (arguments.Kind == 0)
+                BuildPackages_Xaf(arguments, logAction, logExceptionAction, logLoadAssemblyAction, unexpectedExceptionAction, successAction);
+            else if (arguments.Kind == 1)
+                BuildPackages_Tiger(arguments, logAction, logExceptionAction, logLoadAssemblyAction, unexpectedExceptionAction, successAction);
+            else if (arguments.Kind == 2)
+                BuildPackages_Libs(arguments, logAction, logExceptionAction, logLoadAssemblyAction, unexpectedExceptionAction, successAction);
+        }
 
-            foreach (var file in Directory.EnumerateFiles(arguments.SourceDirectory, "*.dll").Concat(Directory.EnumerateFiles(arguments.SourceDirectory, "*.exe")).Where(f => Path.GetFileNameWithoutExtension(f).StartsWith("DevExpress")))
+        private static void BuildPackages_Xaf(ProgramArguments arguments, Action<string> logAction, Action<Exception> logExceptionAction, Action<Tuple<string, Exception>> logLoadAssemblyAction, Action<Exception> unexpectedExceptionAction, Action<string> successAction)
+        {
+            foreach (var file in Directory.EnumerateFiles(arguments.SourceDirectory, "*.dll")
+                .Concat(Directory.EnumerateFiles(arguments.SourceDirectory, "*.exe"))
+                .Where(f => Path.GetFileNameWithoutExtension(f).StartsWith("DevExpress")))
             {
                 try
                 {
@@ -115,8 +126,8 @@ namespace DXNugetPackageBuilder
                     var package = new PackageBuilder();
 
                     package.Description = "DevExpress " + packageName;
-                    package.Authors.Add("Developer Express Inc.");
-                    package.IconUrl = new Uri("https://www.devexpress.com/favicon.ico?v=2");
+                    package.Authors.Add("DevExpress & Yesfree");
+                    package.IconUrl = new Uri("http://nuget.yesfree.cn/ico/xaf.ico");
                     package.Copyright = "2008-" + DateTime.Today.Year;
                     package.ProjectUrl = new Uri("https://www.devexpress.com/");
 
@@ -180,7 +191,7 @@ namespace DXNugetPackageBuilder
 
                         if (packageName.Contains(dxVersion))
                             packageName = packageName.Replace(dxVersion, string.Empty);
-
+                        packageName += "_yesfree";
                         var targetPackagePath = Path.Combine(arguments.OutputDirectory, packageName + "." + assemblyVersion.ToString(4) + ".nupkg");
 
                         if (File.Exists(targetPackagePath))
@@ -291,8 +302,287 @@ namespace DXNugetPackageBuilder
             }
         }
 
+        private static void BuildPackages_Tiger(ProgramArguments arguments, Action<string> logAction, Action<Exception> logExceptionAction, Action<Tuple<string, Exception>> logLoadAssemblyAction, Action<Exception> unexpectedExceptionAction, Action<string> successAction)
+        {
+            foreach (var file in Directory.EnumerateFiles(arguments.SourceDirectory, "*.dll").
+                Concat(Directory.EnumerateFiles(arguments.SourceDirectory, "*.exe")).
+                Where(f => Path.GetFileNameWithoutExtension(f).StartsWith("Tiger")))
+            {
+                try
+                {
+                    var packageName = Path.GetFileNameWithoutExtension(file);
 
-        private static void CreateLocalization(string file, PackageBuilder resourcePackage, ProgramArguments arguments)
+                    var package = new PackageBuilder();
+
+                    package.Description = "Yesfree " + packageName;
+                    package.Authors.Add("Yesfree Inc.");
+                    package.IconUrl = new Uri("http://nuget.yesfree.cn/ico/tiger.ico");
+                    package.Copyright = "2008-" + DateTime.Today.Year;
+                    package.ProjectUrl = new Uri("https://www.Yesfree.cn/");
+
+                    package.Files.Add(new PhysicalPackageFile
+                    {
+                        SourcePath = file,
+                        TargetPath = "lib/net45/" + Path.GetFileName(file),
+                    });
+
+                    try
+                    {
+
+                        var assembly = Assembly.LoadFile(file);
+
+                        var pdbFile = Path.ChangeExtension(Path.GetFileName(file), "pdb");
+
+                        pdbFile = Path.Combine(arguments.PdbDirectory, pdbFile);
+
+                        if (File.Exists(pdbFile))
+                        {
+                            package.Files.Add(new PhysicalPackageFile
+                            {
+                                SourcePath = pdbFile,
+                                TargetPath = "lib/net45/" + Path.GetFileName(pdbFile),
+                            });
+                        }
+
+                        var xmlFile = Path.ChangeExtension(file, "xml");
+
+                        if (File.Exists(xmlFile))
+                        {
+                            package.Files.Add(new PhysicalPackageFile
+                            {
+                                SourcePath = xmlFile,
+                                TargetPath = "lib/net45/" + Path.GetFileName(xmlFile),
+                            });
+                        }
+
+                        var configFile = file + ".config";
+
+                        if (File.Exists(configFile))
+                        {
+                            package.Files.Add(new PhysicalPackageFile
+                            {
+                                SourcePath = configFile,
+                                TargetPath = "lib/net45/" + Path.GetFileName(configFile),
+                            });
+                        }
+
+
+                        var assemblyVersion = assembly.GetName().Version;
+
+                        var dxVersion = ".v" + assemblyVersion.Major + "." + assemblyVersion.Minor;
+
+                        if (arguments.UseAssemblyFileVersion)
+                        {
+                            var fvi = FileVersionInfo.GetVersionInfo(assembly.Location);
+                            var version = fvi.FileVersion;
+                            assemblyVersion = new Version(version);
+                        }
+
+                        if (packageName.Contains(dxVersion))
+                            packageName = packageName.Replace(dxVersion, string.Empty);
+                        packageName += "_yesfree";
+
+                        var targetPackagePath = Path.Combine(arguments.OutputDirectory, packageName + "." + assemblyVersion.ToString(4) + ".nupkg");
+
+                        if (File.Exists(targetPackagePath))
+                            File.Delete(targetPackagePath);
+
+                        package.Id = packageName;
+                        package.Version = new SemanticVersion(assemblyVersion);
+
+                        var dependencies = new List<PackageDependency>();
+
+                        foreach (var refAssembly in assembly.GetReferencedAssemblies().Where(r => r.Name.StartsWith("Tiger")))
+                        {
+                            logAction(refAssembly.Name);
+
+                            var refPackageId = refAssembly.Name;
+
+                            if (refPackageId.Contains(dxVersion))
+                                refPackageId = refPackageId.Replace(dxVersion, string.Empty);
+
+
+                            var refAssemblyVersion = refAssembly.Version;
+
+                            var minVersion = new SemanticVersion(new Version(refAssemblyVersion.Major, refAssemblyVersion.Minor, refAssemblyVersion.Build));
+                            var maxVersion = new SemanticVersion(new Version(refAssemblyVersion.Major, refAssemblyVersion.Minor, refAssemblyVersion.Build + 1));
+
+                            var versionSpec = new VersionSpec { MinVersion = minVersion, MaxVersion = maxVersion, IsMinInclusive = true };
+
+                            var dependency = new PackageDependency(refPackageId, versionSpec);
+                            dependencies.Add(dependency);
+                        }
+
+                        package.DependencySets.Add(new PackageDependencySet(null, dependencies));
+
+
+                        CreateLocalization(file, package, arguments, "net45");
+
+
+                        using (var fs = new FileStream(targetPackagePath, FileMode.CreateNew, FileAccess.ReadWrite))
+                        {
+                            package.Save(fs);
+
+                            successAction(package.Id);
+                        }
+
+                        Console.WriteLine(packageName);
+                    }
+                    catch (Exception ex)
+                    {
+                        logExceptionAction(ex);
+                        logLoadAssemblyAction(Tuple.Create(package.Id, ex));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logExceptionAction(ex);
+                    unexpectedExceptionAction(ex);
+                }
+            }
+        }
+
+        private static void BuildPackages_Libs(ProgramArguments arguments, Action<string> logAction, Action<Exception> logExceptionAction, Action<Tuple<string, Exception>> logLoadAssemblyAction, Action<Exception> unexpectedExceptionAction, Action<string> successAction)
+        {
+            foreach (var file in Directory.EnumerateFiles(arguments.SourceDirectory, "*.dll")
+                .Concat(Directory.EnumerateFiles(arguments.SourceDirectory, "*.exe")))
+            {
+                try
+                {
+                    var packageName = Path.GetFileNameWithoutExtension(file);
+
+                    var package = new PackageBuilder();
+
+                    package.Description = "Yesfree Libs " + packageName;
+                    package.Authors.Add("Yesfree Reference Libs");
+                    package.IconUrl = new Uri("http://nuget.yesfree.cn/ico/libs.ico");
+                    package.Copyright = "2008-" + DateTime.Today.Year;
+                    package.ProjectUrl = new Uri("https://www.Yesfree.cn/libs");
+
+                    package.Files.Add(new PhysicalPackageFile
+                    {
+                        SourcePath = file,
+                        TargetPath = "lib/net40/" + Path.GetFileName(file),
+                    });
+
+                    try
+                    {
+
+                        var assembly = Assembly.LoadFile(file);
+
+                        var pdbFile = Path.ChangeExtension(Path.GetFileName(file), "pdb");
+
+                        pdbFile = Path.Combine(arguments.PdbDirectory, pdbFile);
+
+                        if (File.Exists(pdbFile))
+                        {
+                            package.Files.Add(new PhysicalPackageFile
+                            {
+                                SourcePath = pdbFile,
+                                TargetPath = "lib/net40/" + Path.GetFileName(pdbFile),
+                            });
+                        }
+
+                        var xmlFile = Path.ChangeExtension(file, "xml");
+
+                        if (File.Exists(xmlFile))
+                        {
+                            package.Files.Add(new PhysicalPackageFile
+                            {
+                                SourcePath = xmlFile,
+                                TargetPath = "lib/net40/" + Path.GetFileName(xmlFile),
+                            });
+                        }
+
+                        var configFile = file + ".config";
+
+                        if (File.Exists(configFile))
+                        {
+                            package.Files.Add(new PhysicalPackageFile
+                            {
+                                SourcePath = configFile,
+                                TargetPath = "lib/net40/" + Path.GetFileName(configFile),
+                            });
+                        }
+
+
+                        var assemblyVersion = assembly.GetName().Version;
+
+                        var dxVersion = ".v" + assemblyVersion.Major + "." + assemblyVersion.Minor;
+
+                        if (arguments.UseAssemblyFileVersion)
+                        {
+                            var fvi = FileVersionInfo.GetVersionInfo(assembly.Location);
+                            var version = fvi.FileVersion;
+                            assemblyVersion = new Version(version);
+                        }
+
+                        if (packageName.Contains(dxVersion))
+                            packageName = packageName.Replace(dxVersion, string.Empty);
+                        packageName += "_yesfree";
+                        var targetPackagePath = Path.Combine(arguments.OutputDirectory, packageName + "." + assemblyVersion.ToString(4) + ".nupkg");
+
+                        if (File.Exists(targetPackagePath))
+                            File.Delete(targetPackagePath);
+
+                        package.Id = packageName;
+                        package.Version = new SemanticVersion(assemblyVersion);
+
+                        var dependencies = new List<PackageDependency>();
+
+                        foreach (var refAssembly in assembly.GetReferencedAssemblies())
+                        {
+                            logAction(refAssembly.Name);
+
+                            var refPackageId = refAssembly.Name;
+
+                            if (refPackageId.Contains(dxVersion))
+                                refPackageId = refPackageId.Replace(dxVersion, string.Empty);
+
+
+                            var refAssemblyVersion = refAssembly.Version;
+
+                            var minVersion = new SemanticVersion(new Version(refAssemblyVersion.Major, refAssemblyVersion.Minor, refAssemblyVersion.Build));
+                            var maxVersion = new SemanticVersion(new Version(refAssemblyVersion.Major, refAssemblyVersion.Minor, refAssemblyVersion.Build + 1));
+
+                            var versionSpec = new VersionSpec { MinVersion = minVersion, MaxVersion = maxVersion, IsMinInclusive = true };
+
+                            var dependency = new PackageDependency(refPackageId, versionSpec);
+
+                            dependencies.Add(dependency);
+
+                        }
+
+                        package.DependencySets.Add(new PackageDependencySet(null, dependencies));
+
+
+                        CreateLocalization(file, package, arguments);
+
+
+                        using (var fs = new FileStream(targetPackagePath, FileMode.CreateNew, FileAccess.ReadWrite))
+                        {
+                            package.Save(fs);
+
+                            successAction(package.Id);
+                        }
+
+                        Console.WriteLine(packageName);
+                    }
+                    catch (Exception ex)
+                    {
+                        logExceptionAction(ex);
+                        logLoadAssemblyAction(Tuple.Create(package.Id, ex));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logExceptionAction(ex);
+                    unexpectedExceptionAction(ex);
+                }
+            }
+        }
+
+        private static void CreateLocalization(string file, PackageBuilder resourcePackage, ProgramArguments arguments, string netPath= "net40")
         {
             var assemblyFileName = Path.GetFileName(file);
             var resourceFileName = Path.GetFileName(Path.ChangeExtension(file, "resources.dll"));
@@ -305,7 +595,7 @@ namespace DXNugetPackageBuilder
                     resourcePackage.Files.Add(new PhysicalPackageFile
                     {
                         SourcePath = localizedAssemblyPath,
-                        TargetPath = "lib/net40/" + lang + "/" + Path.GetFileName(localizedAssemblyPath),
+                        TargetPath = $"lib/{netPath}/" + lang + "/" + Path.GetFileName(localizedAssemblyPath),
                     });
                 }
 
@@ -316,7 +606,7 @@ namespace DXNugetPackageBuilder
                     resourcePackage.Files.Add(new PhysicalPackageFile
                     {
                         SourcePath = xmlFile,
-                        TargetPath = "lib/net40/" + lang + "/" + Path.GetFileName(xmlFile),
+                        TargetPath = $"lib/{netPath}/" + lang + "/" + Path.GetFileName(xmlFile),
                     });
                 }
             }
