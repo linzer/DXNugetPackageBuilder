@@ -54,8 +54,12 @@ namespace DXNugetPackageBuilder
         [CommandLineArgument(DefaultValue = true), Description("Verbose Log output")]
         public bool Verbose { get; set; }
 
-        [CommandLineArgument(Position = 5)]
+        [CommandLineArgument(Position = 6)]
         public string NugetApiKey { get; set; }
+
+
+        [CommandLineArgument(IsRequired = false), Description("指定Dll名称, seperated by ;")]
+        public string DllNames { get; set; }
 
         public static ProgramArguments Create(string[] args)
         {
