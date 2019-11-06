@@ -115,6 +115,8 @@ namespace DXNugetPackageBuilder
                 BuildPackages_Tiger(arguments, logAction, logExceptionAction, logLoadAssemblyAction, unexpectedExceptionAction, successAction);
             else if (arguments.Kind == 2)
                 BuildPackages_Libs(arguments, logAction, logExceptionAction, logLoadAssemblyAction, unexpectedExceptionAction, successAction);
+            else if (arguments.Kind == 8)
+                BuildPackages_Xaf_DllNames(arguments, logAction, logExceptionAction, logLoadAssemblyAction, unexpectedExceptionAction, successAction);
             else if (arguments.Kind == 9)
                 BuildPackages_Tiger_DllNames(arguments, logAction, logExceptionAction, logLoadAssemblyAction, unexpectedExceptionAction, successAction);
             else if (arguments.Kind == 10)
@@ -222,8 +224,8 @@ namespace DXNugetPackageBuilder
                             refPackageId += "_yesfree";
                             var refAssemblyVersion = refAssembly.Version;
 
-                            var minVersion = new NuGetVersion(refAssemblyVersion.Major, refAssemblyVersion.Minor, refAssemblyVersion.Build);
-                            var maxVersion = new NuGetVersion(refAssemblyVersion.Major, refAssemblyVersion.Minor, refAssemblyVersion.Build + 1);
+                            var minVersion = new NuGetVersion(refAssemblyVersion.Major, refAssemblyVersion.Minor, refAssemblyVersion.Build, refAssemblyVersion.Revision);
+                            var maxVersion = new NuGetVersion(refAssemblyVersion.Major, refAssemblyVersion.Minor, refAssemblyVersion.Build, refAssemblyVersion.Revision + 1);
 
                             var versionSpec = new VersionRange(minVersion, true, maxVersion, false);
 
@@ -309,6 +311,198 @@ namespace DXNugetPackageBuilder
                 }
             }
         }
+
+        private static void BuildPackages_Xaf_DllNames(ProgramArguments arguments, Action<string> logAction, Action<Exception> logExceptionAction, Action<Tuple<string, Exception>> logLoadAssemblyAction, Action<Exception> unexpectedExceptionAction, Action<string> successAction)
+        {
+            var dlls = arguments.DllNames.Split(';', ',');
+            foreach (var dll in dlls)
+            {
+                foreach (var file in Directory.EnumerateFiles(arguments.SourceDirectory, dll + "*.dll", SearchOption.AllDirectories))
+                {
+                    try
+                    {
+                        var packageName = Path.GetFileNameWithoutExtension(file);
+
+                        var package = new PackageBuilder();
+
+                        package.Description = "DevExpress " + packageName;
+                        package.Authors.Add("DevExpress and Yesfree");
+                        package.IconUrl = new Uri("http://nuget.yesfree.cn/ico/xaf.ico");
+                        package.Copyright = "2008-" + DateTime.Today.Year;
+                        package.ProjectUrl = new Uri("https://www.Yesfree.cn/xaf");
+                        package.Language = "zh-Hans";
+                        package.Files.Add(new PhysicalPackageFile
+                        {
+                            SourcePath = file,
+                            TargetPath = "lib/net40/" + Path.GetFileName(file),
+                        });
+
+                        try
+                        {
+
+                            var assembly = Assembly.LoadFile(file);
+
+                            var pdbFile = Path.ChangeExtension(Path.GetFileName(file), "pdb");
+
+                            pdbFile = Path.Combine(arguments.PdbDirectory, pdbFile);
+
+                            if (File.Exists(pdbFile))
+                            {
+                                package.Files.Add(new PhysicalPackageFile
+                                {
+                                    SourcePath = pdbFile,
+                                    TargetPath = "lib/net40/" + Path.GetFileName(pdbFile),
+                                });
+                            }
+
+                            var xmlFile = Path.ChangeExtension(file, "xml");
+
+                            if (File.Exists(xmlFile))
+                            {
+                                package.Files.Add(new PhysicalPackageFile
+                                {
+                                    SourcePath = xmlFile,
+                                    TargetPath = "lib/net40/" + Path.GetFileName(xmlFile),
+                                });
+                            }
+
+                            var configFile = file + ".config";
+
+                            if (File.Exists(configFile))
+                            {
+                                package.Files.Add(new PhysicalPackageFile
+                                {
+                                    SourcePath = configFile,
+                                    TargetPath = "lib/net40/" + Path.GetFileName(configFile),
+                                });
+                            }
+
+
+                            var assemblyVersion = assembly.GetName().Version;
+
+                            var dxVersion = ".v" + assemblyVersion.Major + "." + assemblyVersion.Minor;
+
+                            if (arguments.UseAssemblyFileVersion)
+                            {
+                                var fvi = FileVersionInfo.GetVersionInfo(assembly.Location);
+                                var version = fvi.FileVersion;
+                                assemblyVersion = new Version(version);
+                            }
+
+                            if (packageName.Contains(dxVersion))
+                                packageName = packageName.Replace(dxVersion, string.Empty);
+                            var packageId = packageName += "_yesfree";
+                            var targetPackagePath = Path.Combine(arguments.OutputDirectory, packageName + "." + assemblyVersion.ToString(4) + ".nupkg");
+
+                            if (File.Exists(targetPackagePath))
+                                File.Delete(targetPackagePath);
+
+                            package.Id = packageId;
+                            package.Version = new NuGetVersion(assemblyVersion);
+
+                            var dependencies = new List<PackageDependency>();
+
+                            foreach (var refAssembly in assembly.GetReferencedAssemblies().Where(r => r.Name.StartsWith("DevExpress")))
+                            {
+                                logAction(refAssembly.Name);
+
+                                var refPackageId = refAssembly.Name;
+
+                                if (refPackageId.Contains(dxVersion))
+                                    refPackageId = refPackageId.Replace(dxVersion, string.Empty);
+
+                                refPackageId += "_yesfree";
+                                var refAssemblyVersion = refAssembly.Version;
+
+                                var minVersion = new NuGetVersion(refAssemblyVersion.Major, refAssemblyVersion.Minor, refAssemblyVersion.Build, refAssemblyVersion.Revision);
+                                var maxVersion = new NuGetVersion(refAssemblyVersion.Major, refAssemblyVersion.Minor, refAssemblyVersion.Build, refAssemblyVersion.Revision + 1);
+
+                                var versionSpec = new VersionRange(minVersion, true, maxVersion, false);
+
+                                var dependency = new PackageDependency(refPackageId, versionSpec);
+
+                                if (!arguments.Strict)
+                                {
+                                    var skippedDependencies = new Dictionary<string, string[]>();
+
+                                    skippedDependencies["DevExpress.Persistent.Base"] = new[]
+                                    {
+                                    "DevExpress.Utils",
+                                    "DevExpress.XtraReports",
+                                    "DevExpress.XtraReports.Extensions",
+                                    "DevExpress.Printing.Core",
+                                };
+
+                                    skippedDependencies["DevExpress.Persistent.BaseImpl"] = new[]
+                                    {
+                                    "DevExpress.Utils",
+                                    "DevExpress.ExpressApp.ReportsV2",
+                                    "DevExpress.ExpressApp.Reports",
+                                    "DevExpress.XtraReports",
+                                    "DevExpress.ExpressApp.ConditionalAppearance",
+                                    "DevExpress.XtraScheduler.Core",
+                                };
+
+                                    skippedDependencies["DevExpress.Persistent.BaseImpl.EF"] = new[]
+                                    {
+                                    "DevExpress.Utils",
+                                    "DevExpress.ExpressApp.Kpi",
+                                    "DevExpress.ExpressApp.ReportsV2",
+                                    "DevExpress.ExpressApp.Security",
+                                    "DevExpress.ExpressApp.ConditionalAppearance",
+                                    "DevExpress.ExpressApp.StateMachine",
+                                    "DevExpress.ExpressApp.Chart",
+                                    "DevExpress.XtraReports",
+                                    "DevExpress.XtraScheduler.Core",
+                                    "DevExpress.ExpressApp.Reports"
+                                };
+
+                                    if (skippedDependencies.Keys.Any(id => package.Id.Equals(id, StringComparison.InvariantCultureIgnoreCase)))
+                                    {
+                                        var skippedDependency = skippedDependencies[package.Id];
+
+                                        if (skippedDependency.Any(id => dependency.Id.Equals(id)))
+                                        {
+                                            logAction($"Skipping Dependency: {dependency.Id} for Package {package.Id} to avoid UI in Persistence");
+                                            continue;
+                                        }
+                                    }
+                                }
+
+                                dependencies.Add(dependency);
+
+                            }
+
+                            package.DependencyGroups.Add(new PackageDependencyGroup(NuGetFramework.AnyFramework, dependencies));
+
+
+
+                            CreateLocalization(file, package, arguments);
+
+                            using (var fs = new FileStream(targetPackagePath, FileMode.CreateNew, FileAccess.ReadWrite))
+                            {
+                                package.Save(fs);
+
+                                successAction(package.Id);
+                            }
+
+                            Console.WriteLine(packageName);
+                        }
+                        catch (Exception ex)
+                        {
+                            logExceptionAction(ex);
+                            logLoadAssemblyAction(Tuple.Create(package.Id, ex));
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        logExceptionAction(ex);
+                        unexpectedExceptionAction(ex);
+                    }
+                }
+            }
+        }
+
 
         private static void BuildPackages_Tiger(ProgramArguments arguments, Action<string> logAction, Action<Exception> logExceptionAction, Action<Tuple<string, Exception>> logLoadAssemblyAction, Action<Exception> unexpectedExceptionAction, Action<string> successAction)
         {
@@ -412,8 +606,8 @@ namespace DXNugetPackageBuilder
 
                             var refAssemblyVersion = refAssembly.Version;
 
-                            var minVersion = new NuGetVersion(new Version(refAssemblyVersion.Major, refAssemblyVersion.Minor, refAssemblyVersion.Build));
-                            var maxVersion = new NuGetVersion(new Version(refAssemblyVersion.Major, refAssemblyVersion.Minor, refAssemblyVersion.Build + 1));
+                            var minVersion = new NuGetVersion(new Version(refAssemblyVersion.Major, refAssemblyVersion.Minor, refAssemblyVersion.Build, refAssemblyVersion.Revision));
+                            var maxVersion = new NuGetVersion(new Version(refAssemblyVersion.Major, refAssemblyVersion.Minor, refAssemblyVersion.Build, refAssemblyVersion.Revision + 1));
 
                             var versionSpec = new VersionRange(minVersion, true, maxVersion, false);
 
@@ -455,20 +649,47 @@ namespace DXNugetPackageBuilder
             var dlls = arguments.DllNames.Split(';', ',');
             foreach (var dll in dlls)
             {
+                PackageBuilder package = null;
+                string packageName = string.Empty;
+                string targetPackagePath = string.Empty;
                 foreach (var file in Directory.EnumerateFiles(arguments.SourceDirectory, dll+".dll", SearchOption.AllDirectories))
                 {
                     try
                     {
-                        var packageName = Path.GetFileNameWithoutExtension(file);
+                        var assembly = Assembly.LoadFile(file);
+                        var assemblyVersion = assembly.GetName().Version;
+                        var dxVersion = ".v" + assemblyVersion.Major + "." + assemblyVersion.Minor;
 
-                        var package = new PackageBuilder();
+                        if (arguments.UseAssemblyFileVersion)
+                        {
+                            var fvi = FileVersionInfo.GetVersionInfo(assembly.Location);
+                            var version = fvi.FileVersion;
+                            assemblyVersion = new Version(version);
+                        }
 
-                        package.Description = "Yesfree " + packageName;
-                        package.Authors.Add("Yesfree Inc.");
-                        package.IconUrl = new Uri("http://nuget.yesfree.cn/ico/tiger.ico");
-                        package.Copyright = "2008-" + DateTime.Today.Year;
-                        package.ProjectUrl = new Uri("https://www.Yesfree.cn/");
-                        package.Language = "zh-Hans";
+
+                        if (package == null)
+                        {
+                            packageName = Path.GetFileNameWithoutExtension(file);
+
+                            package = new PackageBuilder();
+
+                            package.Description = "Yesfree " + packageName;
+                            package.Authors.Add("Yesfree Inc.");
+                            package.IconUrl = new Uri("http://nuget.yesfree.cn/ico/tiger.ico");
+                            package.Copyright = "2008-" + DateTime.Today.Year;
+                            package.ProjectUrl = new Uri("https://www.Yesfree.cn/");
+                            package.Language = "zh-Hans";
+
+                            if (packageName.Contains(dxVersion))
+                                packageName = packageName.Replace(dxVersion, string.Empty);
+                            //packageName += "_yesfree";
+
+                            targetPackagePath = Path.Combine(arguments.OutputDirectory, packageName + "." + assemblyVersion.ToString(4) + ".nupkg");
+
+                            package.Id = packageName;
+                            package.Version = new NuGetVersion(assemblyVersion);
+                        }
                         string netPath = "net45";
                         if (file.IndexOf("net462") != -1)
                             netPath = "net462";
@@ -488,7 +709,7 @@ namespace DXNugetPackageBuilder
                         try
                         {
 
-                            var assembly = Assembly.LoadFile(file);
+                            
 
                             var pdbFile = Path.ChangeExtension(file, "pdb");
 
@@ -526,29 +747,6 @@ namespace DXNugetPackageBuilder
                             }
 
 
-                            var assemblyVersion = assembly.GetName().Version;
-
-                            var dxVersion = ".v" + assemblyVersion.Major + "." + assemblyVersion.Minor;
-
-                            if (arguments.UseAssemblyFileVersion)
-                            {
-                                var fvi = FileVersionInfo.GetVersionInfo(assembly.Location);
-                                var version = fvi.FileVersion;
-                                assemblyVersion = new Version(version);
-                            }
-
-                            if (packageName.Contains(dxVersion))
-                                packageName = packageName.Replace(dxVersion, string.Empty);
-                            //packageName += "_yesfree";
-
-                            var targetPackagePath = Path.Combine(arguments.OutputDirectory, packageName + "." + assemblyVersion.ToString(4) + ".nupkg");
-
-                            if (File.Exists(targetPackagePath))
-                                File.Delete(targetPackagePath);
-
-                            package.Id = packageName;
-                            package.Version = new NuGetVersion(assemblyVersion);
-
                             var dependencies = new List<PackageDependency>();
 
                             foreach (var refAssembly in assembly.GetReferencedAssemblies().Where(r => r.Name.StartsWith("Tiger")))
@@ -563,8 +761,8 @@ namespace DXNugetPackageBuilder
 
                                 var refAssemblyVersion = refAssembly.Version;
 
-                                var minVersion = new NuGetVersion(new Version(refAssemblyVersion.Major, refAssemblyVersion.Minor, refAssemblyVersion.Build));
-                                var maxVersion = new NuGetVersion(new Version(refAssemblyVersion.Major, refAssemblyVersion.Minor, refAssemblyVersion.Build + 1));
+                                var minVersion = new NuGetVersion(new Version(refAssemblyVersion.Major, refAssemblyVersion.Minor, refAssemblyVersion.Build, refAssemblyVersion.Revision));
+                                var maxVersion = new NuGetVersion(new Version(refAssemblyVersion.Major, refAssemblyVersion.Minor, refAssemblyVersion.Build, refAssemblyVersion.Revision + 1));
 
                                 var versionSpec = new VersionRange(minVersion, true, maxVersion, false);
 
@@ -572,20 +770,10 @@ namespace DXNugetPackageBuilder
                                 dependencies.Add(dependency);
                             }
 
-                            package.DependencyGroups.Add(new PackageDependencyGroup(NuGetFramework.AnyFramework, dependencies));
+                            package.DependencyGroups.Add(new PackageDependencyGroup(NuGetFramework.Parse(netPath), dependencies));
 
 
                             CreateLocalization(file, package, arguments, netPath);
-
-
-                            using (var fs = new FileStream(targetPackagePath, FileMode.CreateNew, FileAccess.ReadWrite))
-                            {
-                                package.Save(fs);
-
-                                successAction(package.Id);
-                            }
-
-                            Console.WriteLine(packageName);
                         }
                         catch (Exception ex)
                         {
@@ -599,6 +787,22 @@ namespace DXNugetPackageBuilder
                         unexpectedExceptionAction(ex);
                     }
                 }
+
+                if (!String.IsNullOrEmpty(targetPackagePath))
+                {
+                    if (File.Exists(targetPackagePath))
+                        File.Delete(targetPackagePath);
+
+                    using (var fs = new FileStream(targetPackagePath, FileMode.CreateNew, FileAccess.ReadWrite))
+                    {
+                        package.Save(fs);
+                        Console.WriteLine(packageName);
+                        successAction(package.Id);
+                    }
+                }
+                package = null;
+                packageName = string.Empty;
+                targetPackagePath = string.Empty;
             }
 
         }
@@ -832,43 +1036,63 @@ namespace DXNugetPackageBuilder
 
         private static void PushPackages(ProgramArguments arguments)
         {
-            var packages = Directory.GetFiles(arguments.OutputDirectory, "*.nupkg").ToList();
-
-            Console.WriteLine("Pushing {0} packages to " + arguments.NugetSource, packages.Count());
-
-            foreach (var package in packages)
+            
+            if (arguments.Kind == 8 || arguments.Kind == 9)
             {
-                try
+                var dlls = arguments.DllNames.Split(';', ',');
+                Console.WriteLine("Pushing {0} packages to " + arguments.NugetSource, dlls.Length);
+                foreach (var dll in dlls)
                 {
-                    var packageName = "\"" + package + "\"";
-
-                    using (var process = new Process())
+                    foreach (var file in Directory.EnumerateFiles(arguments.OutputDirectory, dll + "*.nupkg", SearchOption.AllDirectories))
                     {
-                        process.StartInfo = new ProcessStartInfo(System.Environment.CurrentDirectory+ @"\nuget.exe", string.Format("push {0} -Source {1} -ApiKey {2}", packageName, arguments.NugetSource, arguments.NugetApiKey));
-                        process.StartInfo.CreateNoWindow = true;
-                        process.StartInfo.ErrorDialog = false;
-                        process.StartInfo.RedirectStandardError = true;
-                        process.StartInfo.RedirectStandardOutput = true;
-                        process.StartInfo.UseShellExecute = false;
-
-                        process.OutputDataReceived += (sender, args) => Console.WriteLine(args.Data);
-                        process.ErrorDataReceived += (sender, args) => Console.WriteLine(args.Data);
-
-                        process.EnableRaisingEvents = true;
-
-                        process.Start();
-                        process.BeginOutputReadLine();
-                        process.BeginErrorReadLine();
-
-                        process.WaitForExit();
+                        PushPackage(file, arguments);
                     }
                 }
-                catch (Exception ex)
-                {
-                    Console.WriteLine(ex);
-                    Console.ReadKey();
-                }
+            }
+            else {
+                var packages = Directory.GetFiles(arguments.OutputDirectory, "*.nupkg").ToList();
 
+                Console.WriteLine("Pushing {0} packages to " + arguments.NugetSource, packages.Count());
+
+                foreach (var package in packages)
+                {
+                    PushPackage(package, arguments);
+                }
+            }
+
+        }
+
+        private static void PushPackage(string package, ProgramArguments arguments)
+        {
+            try
+            {
+                var packageName = "\"" + package + "\"";
+
+                using (var process = new Process())
+                {
+                    process.StartInfo = new ProcessStartInfo(System.Environment.CurrentDirectory + @"\nuget.exe", string.Format("push {0} -Source {1} -ApiKey {2}", packageName, arguments.NugetSource, arguments.NugetApiKey));
+                    process.StartInfo.CreateNoWindow = true;
+                    process.StartInfo.ErrorDialog = false;
+                    process.StartInfo.RedirectStandardError = true;
+                    process.StartInfo.RedirectStandardOutput = true;
+                    process.StartInfo.UseShellExecute = false;
+
+                    process.OutputDataReceived += (sender, args) => Console.WriteLine(args.Data);
+                    process.ErrorDataReceived += (sender, args) => Console.WriteLine(args.Data);
+
+                    process.EnableRaisingEvents = true;
+
+                    process.Start();
+                    process.BeginOutputReadLine();
+                    process.BeginErrorReadLine();
+
+                    process.WaitForExit();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex);
+                Console.ReadKey();
             }
         }
 

@@ -17,7 +17,7 @@ namespace DXNugetPackageBuilder
         [CommandLineArgument(Position = 2, IsRequired = true), Description("The directory where the Nuget-Packages should be written")]
         public string OutputDirectory { get; set; }
 
-        [CommandLineArgument(Position = 3, IsRequired = true), Description("0:xaf; 1:Tiger; 2: Libs")]
+        [CommandLineArgument(Position = 3, IsRequired = true), Description("0:xaf; 1:Tiger; 2: Libs; 8: Xaf_dll; 9: Tiger_dll; 10:DeletePackages")]
         public int Kind { get; set; }
 
         [CommandLineArgument(Position = 4, IsRequired = false), Description("The supported languages, seperated by ;")]
