@@ -100,10 +100,12 @@ namespace DXNugetPackageBuilder
                 return;
             }
 
-            if (!Directory.Exists(arguments.OutputDirectory))
+            if (Directory.Exists(arguments.OutputDirectory) && arguments.Kind != 10)
             {
-                Directory.CreateDirectory(arguments.OutputDirectory);
+                Directory.Delete(arguments.OutputDirectory, true);
             }
+
+            Directory.CreateDirectory(arguments.OutputDirectory);
 
             if (!Directory.Exists(arguments.PdbDirectory))
             {
@@ -201,8 +203,14 @@ namespace DXNugetPackageBuilder
 
                         if (packageName.Contains(dxVersion))
                             packageName = packageName.Replace(dxVersion, string.Empty);
-                        var packageId = packageName += "_yesfree";
-                        var targetPackagePath = Path.Combine(arguments.OutputDirectory, packageName + "." + assemblyVersion.ToString(4) + ".nupkg");
+                        string packageId = "";
+                      
+#if nuget
+                        packageId = "YshXaf." + packageName;
+#else
+                        packageId = packageName += "_yesfree";
+#endif
+                        var targetPackagePath = Path.Combine(arguments.OutputDirectory, packageId + "." + assemblyVersion.ToString(4) + ".nupkg");
 
                         if (File.Exists(targetPackagePath))
                             File.Delete(targetPackagePath);
@@ -221,7 +229,11 @@ namespace DXNugetPackageBuilder
                             if (refPackageId.Contains(dxVersion))
                                 refPackageId = refPackageId.Replace(dxVersion, string.Empty);
 
+#if nuget
+                            refPackageId = "YshXaf." + refPackageId;
+#else
                             refPackageId += "_yesfree";
+#endif
                             var refAssemblyVersion = refAssembly.Version;
 
                             var minVersion = new NuGetVersion(refAssemblyVersion.Major, refAssemblyVersion.Minor, refAssemblyVersion.Build, refAssemblyVersion.Revision);
@@ -391,8 +403,14 @@ namespace DXNugetPackageBuilder
 
                             if (packageName.Contains(dxVersion))
                                 packageName = packageName.Replace(dxVersion, string.Empty);
-                            var packageId = packageName += "_yesfree";
-                            var targetPackagePath = Path.Combine(arguments.OutputDirectory, packageName + "." + assemblyVersion.ToString(4) + ".nupkg");
+                            string packageId = "";
+       
+#if nuget
+                            packageId = "YshXaf."+ packageName;
+#else
+                            packageId = packageName += "_yesfree";
+#endif
+                            var targetPackagePath = Path.Combine(arguments.OutputDirectory, packageId + "." + assemblyVersion.ToString(4) + ".nupkg");
 
                             if (File.Exists(targetPackagePath))
                                 File.Delete(targetPackagePath);
@@ -410,8 +428,12 @@ namespace DXNugetPackageBuilder
 
                                 if (refPackageId.Contains(dxVersion))
                                     refPackageId = refPackageId.Replace(dxVersion, string.Empty);
-
+                   
+#if nuget
+                                refPackageId = "YshXaf." + refPackageId;
+#else
                                 refPackageId += "_yesfree";
+#endif
                                 var refAssemblyVersion = refAssembly.Version;
 
                                 var minVersion = new NuGetVersion(refAssemblyVersion.Major, refAssemblyVersion.Minor, refAssemblyVersion.Build, refAssemblyVersion.Revision);
@@ -886,7 +908,12 @@ namespace DXNugetPackageBuilder
 
                         if (packageName.Contains(dxVersion))
                             packageName = packageName.Replace(dxVersion, string.Empty);
+       
+#if nuget
+                        packageName = "YshXaf." + packageName;
+#else
                         packageName += "_yesfree";
+#endif
                         var targetPackagePath = Path.Combine(arguments.OutputDirectory, packageName + "." + assemblyVersion.ToString(4) + ".nupkg");
 
                         if (File.Exists(targetPackagePath))
@@ -899,18 +926,35 @@ namespace DXNugetPackageBuilder
 
                         foreach (var refAssembly in assembly.GetReferencedAssemblies())
                         {
-                            logAction(refAssembly.Name);
+
 
                             var refPackageId = refAssembly.Name;
                             if (refPackageId == "mscorlib")
+                                continue;
+                            if (refPackageId == "Accessibility")
+                                continue;
+                            if (refPackageId == "WindowsBase")
+                                continue;
+                            if (refPackageId == "UIAutomationTypes")
+                                continue;
+                            if (refPackageId == "UIAutomationProvider")
+                                continue;
+                            if (refPackageId == "PresentationCore")
                                 continue;
                             if (refPackageId.StartsWith("System"))
                                 continue;
                             if (refPackageId.Contains(dxVersion))
                                 refPackageId = refPackageId.Replace(dxVersion, string.Empty);
 
+                            logAction(refAssembly.Name);
+
                             if (files.Any(f => f.IndexOf(refPackageId) != -1)) {
+             
+#if nuget
+                                refPackageId = "YshXaf." + refPackageId;
+#else
                                 refPackageId += "_yesfree";
+#endif
                             }
 
                             var refAssemblyVersion = refAssembly.Version;
@@ -1070,6 +1114,7 @@ namespace DXNugetPackageBuilder
 
                 using (var process = new Process())
                 {
+                    Console.WriteLine(string.Format("push {0} -Source {1} -ApiKey {2}", packageName, arguments.NugetSource, arguments.NugetApiKey));
                     process.StartInfo = new ProcessStartInfo(System.Environment.CurrentDirectory + @"\nuget.exe", string.Format("push {0} -Source {1} -ApiKey {2}", packageName, arguments.NugetSource, arguments.NugetApiKey));
                     process.StartInfo.CreateNoWindow = true;
                     process.StartInfo.ErrorDialog = false;
@@ -1110,11 +1155,12 @@ namespace DXNugetPackageBuilder
                     var packageName = Path.GetFileNameWithoutExtension(package);
                     //DevExpress.Charts.Core_yesfree.18.1.4.0
                     var packageVersion =  packageName.Substring(packageName.Length - 8, 8) ;
+                    packageVersion = "18.2.5";
                     var packageId = packageName.Substring(0, packageName.Length - 9) ;
                     using (var process = new Process())
                     {
                         //nuget delete <packageID> <packageVersion> [options]
-                        string cmd = string.Format("delete {0} {1} -Source {2} -ApiKey {3}", packageId, packageVersion, arguments.NugetSource, arguments.NugetApiKey);
+                        string cmd = string.Format("delete {0} {1} -Source {2} -ApiKey {3} -NonInteractive", packageId, packageVersion, arguments.NugetSource, arguments.NugetApiKey);
                         Console.WriteLine(cmd);
                         Console.WriteLine(System.Environment.CurrentDirectory + @"\nuget.exe");
                         process.StartInfo = new ProcessStartInfo(System.Environment.CurrentDirectory + @"\nuget.exe", cmd);
